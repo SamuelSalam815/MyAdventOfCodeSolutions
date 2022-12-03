@@ -1,6 +1,6 @@
 ﻿namespace RockPaperScissors;
 
-public class Program
+public class Day2
 {
     public static Result GetRoundResult(Selection mainSelection, Selection opposingSelection)
     {

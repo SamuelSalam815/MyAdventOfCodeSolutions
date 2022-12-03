@@ -2,7 +2,7 @@ using RockPaperScissors;
 namespace Tests;
 
 [TestClass]
-public class Day2Tests
+public class TestsDay2
 {
     [TestMethod]
     [DataRow(Selection.Rock,Selection.Rock,Result.Draw)]
@@ -18,7 +18,7 @@ public class Day2Tests
     {
         // Arrange
         // Act
-        Result actualResult = Program.GetRoundResult(mainSelection,opposingSelection);
+        Result actualResult = Day2.GetRoundResult(mainSelection,opposingSelection);
         
         // Assert
         Assert.AreEqual(expectedResult, actualResult);
@@ -32,7 +32,7 @@ public class Day2Tests
     {
         // Arrange
         // Act
-        int actualScore = Program.GetRoundScore(mainSelection,result);
+        int actualScore = Day2.GetRoundScore(mainSelection,result);
         
         // Assert
         Assert.AreEqual(expectedScore, actualScore);
@@ -46,7 +46,7 @@ public class Day2Tests
     {
         // Arrange
         // Act
-        int actualScore = Program.ParseStrategyLine(line,isForPart1: true);
+        int actualScore = Day2.ParseStrategyLine(line,isForPart1: true);
 
         // Assert
         Assert.AreEqual(expectedScore, actualScore);
@@ -60,7 +60,7 @@ public class Day2Tests
     {
         // Arrange
         // Act
-        int actualScore = Program.ParseStrategyLine(line, isForPart1: false);
+        int actualScore = Day2.ParseStrategyLine(line, isForPart1: false);
 
         // Assert
         Assert.AreEqual(expectedScore, actualScore);
