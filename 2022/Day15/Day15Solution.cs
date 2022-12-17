@@ -1,6 +1,6 @@
 ﻿namespace Day15;
 
-internal class Program
+internal class Day15Solution
 {
     static void Main()
     {
