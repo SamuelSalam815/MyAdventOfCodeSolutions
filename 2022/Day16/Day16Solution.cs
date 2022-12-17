@@ -10,7 +10,7 @@ internal class Day16Solution
         {
                 // == Parsing puzzle input ==
 
-                StreamReader inputText = new("example.txt");
+                StreamReader inputText = new("input.txt");
                 List<Valve> allValves = new();
                 List<List<string>> indexToNextValveLabelsMap = new();
                 string? line;
@@ -38,9 +38,11 @@ internal class Day16Solution
                 {
                         Valve currentValve = allValves[valveIndex];
                         List<string> labels = indexToNextValveLabelsMap[valveIndex];
-                        currentValve.NextValves.AddRange(
-                                allValves.Where(v => labels.Contains(v.Label))
-                        );
+                        foreach(Valve adjacentValve in allValves.Where(v => labels.Contains(v.Label)))
+                        {
+                                currentValve.NextValves.Add(adjacentValve);
+                                adjacentValve.NextValves.Add(currentValve);
+                        }
                 }
 
                 // Get shortest number of steps from each valve to every other valve
@@ -48,10 +50,6 @@ internal class Day16Solution
                 foreach(Valve valve in allValves)
                 {
                         shortestDistances[valve.Index] = new int[allValves.Count];
-                        for (int i = 0; i < allValves.Count; i++)
-                        {
-                                shortestDistances[valve.Index][i] = -1; // Default to unreachable
-                        }
                         BreadthFirstTraversal(valve, shortestDistances[valve.Index]);
                 }
 
@@ -59,8 +57,6 @@ internal class Day16Solution
                 Valve startingValve = allValves.Where(v => v.Label.Equals("AA")).First();
 
                 // == Solving the puzzle ==
-                
-
                 BitArray startingOpenValves = new BitArray(allValves.Count, false); // All valves start off closed
                 Console.WriteLine( MaximizePressureRelease(30, startingValve, allValves, startingOpenValves, shortestDistances) );
             ;
@@ -69,19 +65,27 @@ internal class Day16Solution
         // perform a breadth first traversal while recording distances to each encountered node
         static void BreadthFirstTraversal(Valve startingValve, int[] distances)
         {
+                // Set all distances to unreachable
+                for(int i = 0; i < distances.Length; i++)
+                {
+                        distances[i] = -1;
+                }
+
                 HashSet<Valve> seenSet = new();
                 seenSet.Add(startingValve);
 
                 Queue<Valve> valvesToTraverse = new();
                 valvesToTraverse.Enqueue(startingValve);
 
-
                 int nodesAtThisLevel = 1;
                 int stepsTaken = 0;
                 while(valvesToTraverse.Count > 0)
                 {
                         Valve currentValve = valvesToTraverse.Dequeue();
-                        distances[currentValve.Index] = stepsTaken;
+                        if (distances[currentValve.Index] == -1) // Prevent overwriting of distances when loops exist
+                        {
+                                distances[currentValve.Index] = stepsTaken;
+                        }
 
                         foreach(Valve candidateValve in currentValve.NextValves)
                         {
@@ -103,47 +107,54 @@ internal class Day16Solution
 
         // Find the best moves by trying every move
         // A valid move is travelling to a valve and then opening it
-        static int MaximizePressureRelease(int minutesLeft, Valve currentValve, List<Valve> allValves, BitArray openValves, int[][] shortestDistances)
+        static ulong MaximizePressureRelease(int minutesLeft, Valve currentValve, List<Valve> allValves, BitArray openValves, int[][] shortestDistances)
         {
-                if (minutesLeft == 0)
+                if (minutesLeft <= 0)
                 {
                         return 0;
                 };
 
-                List<int> possiblePressureReleases = new();
-
-                // Only consider those valves that are ...
-                // Reachable
-                // Closed
-                // Have positive flow
+                List<ulong> possiblePressureReleases = new();
 
                 foreach(Valve candidate in allValves)
                 {
-                        if (shortestDistances[currentValve.Index][candidate.Index] <= 0)
+                        // Reject unreachable candidates
+                        if (shortestDistances[currentValve.Index][candidate.Index] < 0)
                         {
                                 continue;
                         }
 
+                        // Reject candidates that have already been opened
                         if (openValves[candidate.Index])
                         {
                                 continue;
                         }
 
+                        // Reject candidates that will not release pressure
                         if(candidate.FlowRate <= 0)
                         {
                                 continue;
                         }
 
-                        // 1 min per unit distance.
-                        // 1 min to open the valve.
-                        // The rest of the minutes, pressure is released at the flowrate.
+                        // Calculating the value of the move ( how much pressure it will release )
+                        // Considering the total amount of time left...
+                        // 1 minute per unit distance to get to the valve
+                        // 1 minute to open the valve.
+                        // For the rest of the minutes, pressure is released at the flowrate.
                         int minutesOfPressureRelease = minutesLeft - shortestDistances[currentValve.Index][candidate.Index] - 1;
-                        int totalPressureReleasedFromCandidate = minutesOfPressureRelease * candidate.FlowRate;
+
+                        // Reject candidates when there is not enough time to activate them
+                        if(minutesOfPressureRelease <= 0)
+                        {
+                                continue;
+                        }
+
+                        ulong totalPressureReleasedFromCandidate = (ulong)minutesOfPressureRelease * (ulong)candidate.FlowRate;
                         
                         BitArray newOpenValves = new(openValves);
                         newOpenValves[candidate.Index] = true;
 
-                        int pressureReleasedFromTheRest = MaximizePressureRelease(minutesOfPressureRelease, candidate, allValves, newOpenValves, shortestDistances);
+                        ulong pressureReleasedFromTheRest = MaximizePressureRelease(minutesOfPressureRelease, candidate, allValves, newOpenValves, shortestDistances);
 
                         possiblePressureReleases.Add(totalPressureReleasedFromCandidate + pressureReleasedFromTheRest);
                 }

@@ -11,7 +11,7 @@ internal class Valve
         public readonly string Label;
         public readonly int FlowRate;
         public readonly int Index;
-        public List<Valve> NextValves;
+        public HashSet<Valve> NextValves;
 
         public Valve(string label, int flowRate, int index)
         {
