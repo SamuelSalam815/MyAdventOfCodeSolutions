@@ -1,213 +1,364 @@
-﻿#define PART1
+﻿using Microsoft.Win32.SafeHandles;
+using System.Linq;
+
 namespace Day16;
 
 public class Day16Solution
 {
-        /// <summary>
-        /// Returns all ordered ways of picking <paramref name="quantity"/> separate items from <paramref name="values"/>
-        /// </summary>
-        /// <typeparam name="T"> The type of the items being picked </typeparam>
-        /// <param name="quantity"> how many items to pick </param>
-        /// <param name="values"> the collection of available choices </param>
-        /// <returns>A list of combinations where each combination is an ordered selection of items from <paramref name="values"/></returns>
-        static List<List<T>> GetCombinations<T>(int quantity, ICollection<T> values) where T : IEquatable<T>
+        const bool SHOULD_PRINT_TO_CONSOLE = false;
+
+        static void PrintLine(string s)
         {
-
-                if(quantity > values.Count)
+                if (SHOULD_PRINT_TO_CONSOLE)
                 {
-                        throw new Exception($"Cannot choose {quantity} items when only {values.Count} are provided");
+                        Console.WriteLine(s);
                 }
-
-                if(quantity == 0)
-                {
-                        return new List<List<T>> { new List<T>() };
-                }
-
-                List<List<T>> result = new();
-
-                foreach(T value in values)
-                {
-                        List<List<T>> selections = GetCombinations(quantity - 1, values.Where(v => !v.Equals(value)).ToList());
-
-                        foreach(List<T> selection in selections)
-                        {
-                                List<T> newSelection = new(selection)
-                                {
-                                        value
-                                };
-
-                                result.Add(newSelection);
-                        }
-                }
-
-                return result;
-
         }
-
         public static void Main()
         {
+
+                const int OVERALL_TIME_LIMIT = 26;
                 const int NUM_AGENTS = 2;
-                const uint OVERALL_TIME_LIMIT_MINUTES = 26;
+                const string INPUT_FILE = "input.txt";
 
-                ValveNetwork valveNetwork;
-                
                 // Parse input
-                using (StreamReader input = new("input.txt"))
+                Dictionary<string, Valve> valveMap = new();
+                using (StreamReader inputReader = new(INPUT_FILE))
                 {
-                        ValveNetworkBuilder networkBuilder = new();
                         string? line;
-                        while((line = input.ReadLine()) is not null)
+                        while ((line = inputReader.ReadLine()) is not null)
                         {
-                                networkBuilder.ParseValveDefinition(line);
+                                Valve currentValve = Valve.Parse(line);
+                                valveMap.Add(currentValve.Label, currentValve);
                         }
-
-                        valveNetwork = networkBuilder.Build();
                 }
 
-                // Run simulations on all possible decisions to determine greatest amount of pressure that can be released
+                // Map pairs of valve labels to the time taken to move between them
+                Dictionary<(string, string), uint> travelTime = new();
+                foreach ((string label, _) in valveMap)
+                {
+                        // Precompute shortest distances with breadth first traversal
+                        BreadthFirstTraversal(label, valveMap, travelTime);
+                }
 
-                Stack<Simulation> simulations = new();
-
-                HashSet<Valve> initiallyClosedValves = 
-                        valveNetwork
-                        .AllValves
-                        .Where(v => v.FlowRate > 0)
-                        .ToHashSet();
+                // Set up starting state
+                uint greatestPressureReleased = 0;
                 
-                Valve startingValve = 
-                        valveNetwork
-                        .AllValves
-                        .Where(v => v.Label.Equals("AA"))
-                        .First();
-
-
-                // The first decision : which valve to initially open
-                // Each active task represents an agent
-                foreach(List<Valve> selection in GetCombinations(NUM_AGENTS, initiallyClosedValves) )
+                List<string> agentStartingValveLabels = new();
+                for(int agentIndex = 0; agentIndex < NUM_AGENTS; agentIndex++)
                 {
-                        List<OpenValveTask> tasks = new();
-                        HashSet<Valve> targetableValves = new(initiallyClosedValves);
-
-                        foreach(Valve target in selection)
-                        {
-                                tasks.Add(new OpenValveTask(
-                                        Target: target,
-                                        MinutesToComplete: valveNetwork.ShortestDistances[(startingValve, target)] + 1
-                                ));
-                                targetableValves.Remove(target); // Prevent multiple agents from trying to open the same valve at once
-                        }
-
-                        simulations.Push(new Simulation(
-                                MinutesRemaining: OVERALL_TIME_LIMIT_MINUTES,
-                                TotalPressureReleased: 0,
-                                TargetableValves: targetableValves,
-                                // Targetable valves are not open, are not in the process of being opened and have positive flow
-                                RunningTasks: tasks
-                        ));
+                        agentStartingValveLabels.Add("AA"); // "AA" is the starting valve
                 }
 
-                ulong greatestPressureReleased = 0;
-
-                while(simulations.Count > 0)
+                List<string> initiallyClosedValves = new();
+                foreach((_, Valve valve) in valveMap)
                 {
-                        simulations.Pop().Deconstruct
-                        (
-                                out uint minutesLeft,
-                                out ulong currentPressureReleased,
-                                out HashSet<Valve> targetableValves,
-                                out List<OpenValveTask> activeTasks
+                        // Exclude valves with 0 flow rate
+                        if (valve.FlowRate > 0)
+                        {
+                                initiallyClosedValves.Add(valve.Label);
+                        }
+                }
+
+                // Perform a backtracking traversal of decision tree
+
+                Stack<CheckPoint> checkPoints = new(CreateCheckPointsForEveryPossibleDecision(
+                        0, 
+                        OVERALL_TIME_LIMIT, 
+                        initiallyClosedValves, 
+                        agentStartingValveLabels,
+                        new List<ValveTask>(),
+                        travelTime
+                ));
+
+                while(checkPoints.Count > 0)
+                {
+                        checkPoints.Pop().Deconstruct(
+                                out uint totalPressureReleased,
+                                out uint minutesRemaining,
+                                out List<string> closedValves,
+                                out List<string> locationsOfIdlingAgents,
+                                out List<ValveTask> activeValveTasks
                         );
 
-                        minutesLeft--;
-                        List<Valve> startingPositionsForNewTasks = new(); // Each position here corresponds to the position of an idling agent
-                        List<OpenValveTask> persistingTasks = new();
+                        // Attempt to cull this branch of decision tree, using an upper bound on flow rate
+                        List<uint> flowRates = new();
+
+                        flowRates.AddRange(closedValves.Select(label => valveMap[label].FlowRate));
+                        flowRates.AddRange(activeValveTasks.Select(task => valveMap[task.TargetValveLabel].FlowRate));
+                        flowRates.Sort(new Comparison<uint>((a,b) => b.CompareTo(a))); // Highest pressure first
+
+                        ulong maxPressureBound = totalPressureReleased;
                         
-                        foreach(OpenValveTask task in activeTasks)
+                        for(int flowIndex = 0; flowIndex < flowRates.Count; flowIndex++)
                         {
-                                OpenValveTask updatedTesk = task.GetTimeAdvancedTask();
-                                if(updatedTesk.MinutesToComplete == 0)
+                                if(flowIndex + 1 >= minutesRemaining)
                                 {
-                                        currentPressureReleased += minutesLeft * task.Target.FlowRate;
-                                        startingPositionsForNewTasks.Add(task.Target);
-                                } else
-                                {
-                                        persistingTasks.Add(updatedTesk);
+                                        break;
                                 }
+                                maxPressureBound += (ulong)(minutesRemaining - flowIndex - 1) * flowRates[flowIndex]; 
                         }
 
-                        if(minutesLeft == 0)
+                        if (maxPressureBound < greatestPressureReleased)
                         {
-                                greatestPressureReleased = Math.Max(currentPressureReleased, greatestPressureReleased);
                                 continue;
                         }
 
-                        int numAgentsAvailable = startingPositionsForNewTasks.Count;
+                        // Passed cull check
 
-                        if(numAgentsAvailable == 0 || targetableValves.Count == 0) 
-                        // Without free agents or more targets, there is only one decision : wait for agents to complete their task
+                        void printUpdate()
                         {
-                                simulations.Push(new Simulation(
-                                        MinutesRemaining: minutesLeft,
-                                        TotalPressureReleased: currentPressureReleased,
-                                        TargetableValves: targetableValves,
-                                        RunningTasks: persistingTasks
-                                ));
-                                continue;
+                                PrintLine($"Minutes remaining: {minutesRemaining}");
+                                PrintLine($"Released pressure: {totalPressureReleased}");
+                                PrintLine($"Assignable Valves: {string.Join(", ",closedValves)}");
+                                PrintLine("Idle Agent Locations: [" + string.Join(", ",locationsOfIdlingAgents) + "]" );
                         }
 
-                        List<List<Valve>> combinations;
-                        bool areMoreTargetsThanAgents = numAgentsAvailable <= targetableValves.Count;
+                        PrintLine("\n\n---\n\n");
+                        printUpdate();
+                        PrintLine("Active Tasks:\n" + string.Join("\n", activeValveTasks));
 
-                        // There are two set of valves at this point and we wish to enumerate every possible decision
-                        // The set of valves that agents can begin tasks from
-                        // The set of valves that agents can begin opening
-                        // The combinations from the larger set with size equal to the smaller set give all possible task assignment decisions
+                        // Skip minutes until the next task is completed
+                        uint minutesToSkip = activeValveTasks.Select(t => t.MinutesToCompleteTask).Min();
 
-                        if( areMoreTargetsThanAgents )
-                        {
-                                combinations = GetCombinations(numAgentsAvailable, targetableValves);
-                        }
-                        else
-                        {
-                                combinations = GetCombinations(targetableValves.Count, startingPositionsForNewTasks);
-                        }
+                        List<ValveTask> updatedTasks = activeValveTasks.Select(t => t.MakeProgress(minutesToSkip)).ToList();
+                        minutesRemaining -= minutesToSkip;
 
-                        foreach (List<Valve> combination in combinations)
+                        // Now determine which agents have been freed from their tasks
+                        List<ValveTask> persistantTasks = new();
+                        foreach(ValveTask task in updatedTasks)
                         {
-                                List<OpenValveTask> newTasks = new(persistingTasks);
-                                HashSet<Valve> newTargatableValves = new(targetableValves);
-                                List<Valve> targetValves = targetableValves.ToList();
-                                for(int valveIndex = 0; valveIndex < combination.Count; valveIndex++)
+                                if(task.MinutesToCompleteTask == 0)
                                 {
-                                        Valve newStartValve;
-                                        Valve newTargetValve;
+                                        locationsOfIdlingAgents.Add(task.TargetValveLabel);
+                                        totalPressureReleased += valveMap[task.TargetValveLabel].FlowRate * minutesRemaining;
+                                }
+                                else
+                                {
+                                        persistantTasks.Add(task);
+                                }
+                        }
 
-                                        if(areMoreTargetsThanAgents)
+                        PrintLine($"\nSkipped {minutesToSkip} minutes ahead ...\n");
+                        printUpdate();
+                        PrintLine("Persistant Tasks:\n" + string.Join("\n", persistantTasks));
+
+                        List<CheckPoint> checkpointsFromPossibleDecisions = CreateCheckPointsForEveryPossibleDecision
+                        (
+                                totalPressureReleased,
+                                minutesRemaining,
+                                closedValves,
+                                locationsOfIdlingAgents,
+                                persistantTasks,
+                                travelTime
+                        );
+
+                        foreach(CheckPoint checkPoint in checkpointsFromPossibleDecisions)
+                        {
+                                checkPoints.Push(checkPoint);
+                        }
+
+                        if( checkpointsFromPossibleDecisions.Count == 0 )
+                        {
+                                PrintLine("No more decisions left to make");
+
+                                // When there are no more decisions to make, complete remaining tasks
+                                foreach(ValveTask finalTask in persistantTasks)
+                                {
+                                        if(finalTask.MinutesToCompleteTask < minutesRemaining)
                                         {
-                                                newStartValve = startingPositionsForNewTasks[valveIndex];
-                                                newTargetValve = combination[valveIndex];
+                                                totalPressureReleased += valveMap[finalTask.TargetValveLabel].FlowRate * (minutesRemaining - finalTask.MinutesToCompleteTask);
                                         }
-                                        else
-                                        {
-                                                newStartValve = combination[valveIndex];
-                                                newTargetValve = targetValves[valveIndex];
-                                        }
-
-                                        newTargatableValves.Remove(newTargetValve);
-
-                                        uint timeForCompletion = valveNetwork.ShortestDistances[(newStartValve, newTargetValve)] + 1;
-                                        newTasks.Add(new OpenValveTask(newTargetValve,timeForCompletion));
                                 }
 
-                                simulations.Push( new Simulation(
-                                        MinutesRemaining: minutesLeft,
-                                        TotalPressureReleased: currentPressureReleased,
-                                        TargetableValves: newTargatableValves,
-                                        RunningTasks: newTasks
-                                ));
+                                greatestPressureReleased = Math.Max(greatestPressureReleased, totalPressureReleased);
+
+                                PrintLine($"Total Pressure Released : {totalPressureReleased}");
+                                
+                                PrintLine("\n == Back tracking == \n");
                         }
                 }
 
                 Console.WriteLine(greatestPressureReleased);
         }
+
+        static void BreadthFirstTraversal(string startLabel, Dictionary<string, Valve> valveMap, in Dictionary<(string, string), uint> travelTime)
+        {
+                HashSet<string> labelsSeen = new();
+                Queue<string> labelQueue = new();
+
+                labelQueue.Enqueue(startLabel);
+                labelsSeen.Add(startLabel);
+
+                uint minutesTaken = 0;
+                int numValvesAtThisInstantOfTime = 1;
+                while (labelQueue.Count > 0)
+                {
+                        Valve currentValve = valveMap[labelQueue.Dequeue()];
+
+                        travelTime.Add((startLabel, currentValve.Label), minutesTaken);
+
+                        foreach (string label in currentValve.AdjacentValveLabels)
+                        {
+                                if (!labelsSeen.Contains(label))
+                                {
+                                        labelQueue.Enqueue(label);
+                                        labelsSeen.Add(label);
+                                }
+                        }
+
+                        numValvesAtThisInstantOfTime--;
+                        if (numValvesAtThisInstantOfTime == 0)
+                        {
+                                numValvesAtThisInstantOfTime = labelQueue.Count;
+                                minutesTaken++;
+                        }
+                }
+        }
+
+        static List<CheckPoint> CreateCheckPointsForEveryPossibleDecision
+        (
+                uint totalPressureReleased,
+                uint minutesRemaining,
+                List<string> labelsOfClosedValves,
+                List<string> valveLabelsOfIdlingAgents, // The labels of valves where free agents are positioned
+                List<ValveTask> persistantValveTasks,
+                Dictionary<(string, string), uint> travelTime
+        )
+        {
+                List<CheckPoint> checkPoints = new();
+                List<List<ValveTask>> possibleDecisions = MakeAllPossibleDecisions(minutesRemaining, labelsOfClosedValves, valveLabelsOfIdlingAgents, travelTime);
+
+                foreach(List<ValveTask> decision in possibleDecisions)
+                {
+                        List<string> updatedValveLabelsOfIdlingAgents = new(valveLabelsOfIdlingAgents);
+                        List<string> updatedLabelsOfClosedValves = new(labelsOfClosedValves);
+
+                        foreach(ValveTask pendingTask in decision)
+                        {
+                                updatedValveLabelsOfIdlingAgents.Remove(pendingTask.StartingValveLabel);
+                                updatedLabelsOfClosedValves.Remove(pendingTask.TargetValveLabel);
+                        }
+
+                        decision.AddRange(persistantValveTasks);
+                        checkPoints.Add
+                        (
+                                new CheckPoint
+                                (
+                                        TotalPressureReleased: totalPressureReleased,
+                                        MinutesRemaining: minutesRemaining,
+                                        ClosedValves: updatedLabelsOfClosedValves,
+                                        LocationsOfIdlingAgents: updatedValveLabelsOfIdlingAgents,
+                                        ActiveValveTasks: decision
+                                )
+                        );
+                }
+
+                return checkPoints;
+        }
+
+        static List<List<ValveTask>> MakeAllPossibleDecisions
+        (
+                uint minutesRemaining,
+                List<string> labelsOfClosedValves,
+                List<string> valveLabelsOfIdlingAgents, // The labels of valves where free agents are positioned
+                Dictionary<(string, string), uint> travelTime
+        )
+        {
+                int numFreeAgents = valveLabelsOfIdlingAgents.Count;
+
+                if (numFreeAgents > 2 || numFreeAgents == 0)
+                {
+                        throw new Exception("Number of free agents not supported");
+                }
+                if (numFreeAgents == 1)
+                {
+                        return MakeAllPossibleDecisionsForOneAgent(minutesRemaining, labelsOfClosedValves, valveLabelsOfIdlingAgents[0], travelTime);
+                }
+
+                // Number of agents == 2
+                List<List<ValveTask>> possibleDecisions = new();
+
+                string valveLabelOfAgent1 = valveLabelsOfIdlingAgents[0];
+                string valveLabelOfAgent2 = valveLabelsOfIdlingAgents[1];
+
+                // When there are not enough closed valves to assign to all agents, must allow one agent to idle
+                if(labelsOfClosedValves.Count < numFreeAgents)
+                {
+                        // Consider only using the first agent
+                        possibleDecisions.AddRange
+                                (MakeAllPossibleDecisionsForOneAgent(minutesRemaining, labelsOfClosedValves, valveLabelOfAgent1, travelTime));
+
+                        // Consider only using the second agent
+                        possibleDecisions.AddRange
+                                (MakeAllPossibleDecisionsForOneAgent(minutesRemaining, labelsOfClosedValves, valveLabelOfAgent2, travelTime));
+
+                        return possibleDecisions;
+                }
+
+                // Consider assigning both agents to different valves - create tasks for opening a pair of valves
+                if (labelsOfClosedValves.Count < numFreeAgents)
+                {
+                        return possibleDecisions; // Cannot assign both agents when there are not enough targets left
+                }
+
+                foreach (string labelOfTargetValve1 in labelsOfClosedValves)
+                {
+                        foreach (string labelOfTargetValve2 in labelsOfClosedValves) // iterate over all possible pairs of valves
+                        {
+                                if (labelOfTargetValve1.Equals(labelOfTargetValve2))
+                                {
+                                        continue; // May not assign both agents to the same valve
+                                }
+
+                                // To open a valve an agent must travel to the valve and then take an extra minute to open the valve
+                                uint minutesForAgent1ToCompleteTask = travelTime[(valveLabelOfAgent1, labelOfTargetValve1)] + 1;
+                                uint minutesForAgent2ToCompleteTask = travelTime[(valveLabelOfAgent2, labelOfTargetValve2)] + 1;
+
+                                // For this decision, both agents must be able to complete their tasks on time
+                                // If they cannot, do not consider this decision
+                                if (minutesForAgent1ToCompleteTask >= minutesRemaining || minutesForAgent2ToCompleteTask >= minutesRemaining)
+                                {
+                                        continue;
+                                }
+
+                                possibleDecisions.Add(new List<ValveTask> {
+                                        new ValveTask(valveLabelOfAgent1, labelOfTargetValve1, minutesForAgent1ToCompleteTask),
+                                        new ValveTask(valveLabelOfAgent2, labelOfTargetValve2, minutesForAgent2ToCompleteTask),
+                                });
+                        }
+                }
+
+                return possibleDecisions;
+
+        }
+
+        static List<List<ValveTask>> MakeAllPossibleDecisionsForOneAgent
+        (
+                uint minutesRemaining,
+                List<string> labelsOfClosedValves,
+                string labelOfStartingValve,
+                Dictionary<(string, string), uint> travelTime
+        )
+        {
+                List<List<ValveTask>> possibleDecisions = new();
+
+                foreach (string labelOfTargetValve in labelsOfClosedValves)
+                {
+                        // It takes an extra minute to open a valve once the agent is at the location
+                        uint minutesToCompleteTask = travelTime[(labelOfStartingValve, labelOfTargetValve)] + 1;
+
+                        // If the valve cannot be left open for 1 minute or more, then no pressure can be released
+                        // Therefore this decision is not worth considering
+                        if (minutesToCompleteTask >= minutesRemaining)
+                        {
+                                continue;
+                        }
+
+                        possibleDecisions.Add(new List<ValveTask> { new ValveTask(labelOfStartingValve, labelOfTargetValve, minutesToCompleteTask) });
+                }
+
+                return possibleDecisions;
+        }
+
 }
