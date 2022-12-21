@@ -2,21 +2,21 @@
 
 public class Repeater<T>
 {
-        private int index;
+        public int Index { get; private set; }
         private readonly T[] items;
         public Repeater(IEnumerable<T> items, int startingIndex = 0)
         {
                 this.items = items.ToArray();
-                index = startingIndex;
+                Index = startingIndex;
         }
 
         public T NextValue()
         {
-                T item = this.items[index++];
+                T item = this.items[Index++];
 
-                if(index == items.Length)
+                if(Index == items.Length)
                 {
-                        index = 0;
+                        Index = 0;
                 }
 
                 return item;

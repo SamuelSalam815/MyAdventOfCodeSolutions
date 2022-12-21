@@ -4,7 +4,19 @@ internal class Day17Solution
 {
         public static void Main()
         {
-                const long NUM_ROCKS_TO_DROP = 2022;
+                bool IsForPart1 = false;
+                long NUM_ROCKS_TO_DROP;
+                
+                if (IsForPart1)
+                {
+                        NUM_ROCKS_TO_DROP = 2022;
+                }
+                else
+                {
+                        NUM_ROCKS_TO_DROP = 1_000_000_000_000L;
+                        //NUM_ROCKS_TO_DROP = 100_0000;
+                }
+
                 // Parse input
                 Repeater<long> jetPushRepeater;
                 using(StreamReader reader = new("input.txt"))
@@ -29,6 +41,11 @@ internal class Day17Solution
                 for(long numRocksDropped = 0; numRocksDropped < NUM_ROCKS_TO_DROP; numRocksDropped++)
                 {
                         simulator.SettleNextRock();
+                        if(simulator.TryToExploitRockSettlingCycle(NUM_ROCKS_TO_DROP - numRocksDropped, out long numRocksOptimizedAway))
+                        {
+                                numRocksDropped += numRocksOptimizedAway;
+                                Console.WriteLine(numRocksOptimizedAway);
+                        }
                 }
 
                 Console.WriteLine(simulator.TowerHeight);
