@@ -2,6 +2,13 @@
 {
     private static void Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
+        StreamReader inputFile = new("example.txt");
+        string? line;
+
+        if ((line = inputFile.ReadLine()) is not null)
+        {
+            System.Console.WriteLine(Blueprint.Parse(line));
+        }
+
     }
 }
