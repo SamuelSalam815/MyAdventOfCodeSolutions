@@ -1,6 +1,8 @@
-﻿internal class Day19Solution
+﻿using Day19;
+
+internal class Day19Solution
 {
-    private static void Main(string[] args)
+    private static void Main()
     {
         StreamReader inputFile = new("example.txt");
         string? line;
