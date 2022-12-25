@@ -5,7 +5,7 @@ namespace Day19;
 
 public record struct Blueprint
 (
-        int BluePrintId,
+        int BlueprintId,
         ReadOnlyDictionary<RobotType, List<Ingredient>> RobotRecipes
 )
 {
@@ -27,7 +27,7 @@ public record struct Blueprint
                         new(ResourceIdentifier.Ore, int.Parse(unparsedRecipes[2][4])),
                         new(ResourceIdentifier.Clay, int.Parse(unparsedRecipes[2][7])),
                         });
-                recipes.Add(RobotType.Obsidian, new(){
+                recipes.Add(RobotType.Geode, new(){
                         new(ResourceIdentifier.Ore, int.Parse(unparsedRecipes[3][4])),
                         new(ResourceIdentifier.Obsidian, int.Parse(unparsedRecipes[3][7])),
                         });
@@ -36,6 +36,16 @@ public record struct Blueprint
                     blueprintId,
                     new ReadOnlyDictionary<RobotType, List<Ingredient>>(recipes)
                 );
+        }
 
+        private static string RobotRecipeToString(RobotType robotType, List<Ingredient> recipe)
+        {
+                string recipeText = string.Join(", ", recipe.Select( r => $"{r.RequiredQuantity} {r.ResourceType}"));
+                return $"Robot type {robotType} requires {recipeText} to be constructed";
+        }
+
+        public override string ToString()
+        {
+                return $"BlueprintId : {BlueprintId}\n{string.Join('\n', RobotRecipes.Select( x => RobotRecipeToString(x.Key, x.Value)))}";
         }
 }
