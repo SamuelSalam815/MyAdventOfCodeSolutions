@@ -82,7 +82,11 @@ public record struct Blueprint(
         while (statesToMakeDecisionsFrom.Count > 0)
         {
             CollectionState currentState = statesToMakeDecisionsFrom.Dequeue();
-
+            int looseGeodeUpperBound = currentState.LooseGeodeUpperBound(TimeLimitMinutes);
+            if (looseGeodeUpperBound < bestGeodeCount)
+            {
+                continue;
+            }
             // Decision : idle until reaching the time limit
             ResourceStore geodeStore = currentState.GeodeStore;
             long idleGeodeCount =

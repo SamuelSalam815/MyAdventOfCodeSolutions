@@ -6,7 +6,7 @@ internal static class Day19Solution
 {
     private static void Main()
     {
-        StreamReader inputFile = new("example.txt");
+        StreamReader inputFile = new("input.txt");
         string? line;
         bool isPart1 = false;
         long result;
@@ -24,12 +24,12 @@ internal static class Day19Solution
             result = 1;
             for (
                 int linesRead = 0;
-                (line = inputFile.ReadLine()) is not null && linesRead < 1;
+                (line = inputFile.ReadLine()) is not null && linesRead < 3;
                 linesRead++
             )
             {
                 Blueprint currentBlueprint = Blueprint.Parse(line);
-                result *= currentBlueprint.GetQualityLevel(TimeLimitMinutes: 32);
+                result *= currentBlueprint.GetMaxGeodesProduced(TimeLimitMinutes: 32);
             }
         }
         System.Console.WriteLine(result);

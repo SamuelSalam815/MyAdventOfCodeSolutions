@@ -29,6 +29,16 @@ public record struct CollectionState(
         + (10 * ClayStore.UnitsProducedPerMinute)
         + (1 * OreStore.UnitsProducedPerMinute);
 
+    // This is a loose upper bound on the number of geodes this state can produce
+    // calculated by assuming a geode robot is built every minute up until the time limit
+    public int LooseGeodeUpperBound(int timeLimitMinutes)
+    {
+        int minutesRemaining = timeLimitMinutes - MinutesPassed;
+        int maximumExtraGeodes =
+            minutesRemaining * (minutesRemaining + 1 + (2 * GeodeStore.UnitsProducedPerMinute)) / 2;
+        return maximumExtraGeodes + GeodeStore.UnitsStored;
+    }
+
     public ResourceStore GetStoreForResource(ResourceType resourceType)
     {
         return resourceType switch
