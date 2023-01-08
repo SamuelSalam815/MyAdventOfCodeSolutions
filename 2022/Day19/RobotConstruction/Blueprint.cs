@@ -49,11 +49,19 @@ public record struct Blueprint
         return $"BlueprintId : {BlueprintId}\n{string.Join('\n', RobotRecipes.Select(x => RobotRecipeToString(x.Key, x.Value)))}";
     }
 
-    internal long GetQualityLevel(int TimeLimitMinutes)
+        internal long GetQualityLevel(int TimeLimitMinutes)
+        {
+                return GetMaxGeodesProduced(TimeLimitMinutes) * BlueprintId;
+        }
+
+    internal long GetMaxGeodesProduced(int TimeLimitMinutes)
     {
         long bestGeodeCount = 0;
-        Queue<CollectionState> statesToMakeDecisionsFrom = new();
-        statesToMakeDecisionsFrom.Enqueue(new CollectionState());
+        PriorityQueue<CollectionState, long> statesToMakeDecisionsFrom = new();
+        CollectionState initialState = new();
+        // Note : a priority queue removes the least priority element first. Negate priority so highest priority comes first
+        void EnqueueState(CollectionState state) => statesToMakeDecisionsFrom.Enqueue(state, -state.Priority);
+        EnqueueState(initialState);
         while(statesToMakeDecisionsFrom.Count > 0)
         {
                 CollectionState currentState = statesToMakeDecisionsFrom.Dequeue();
@@ -66,46 +74,62 @@ public record struct Blueprint
                         bestGeodeCount = idleGeodeCount;
                 }
 
-                if(currentState.MinutesPassed >= TimeLimitMinutes)
-                {
-                        continue;
-                }
-
                 // Decision : wait for sufficient resources to build a specific robot
                 foreach((RobotType robot, List<Ingredient> recipe) in RobotRecipes)
                 {
+                        if(MaxBeneficialProductionReached(robot.ResourceGathered(), currentState))
+                        {
+                                continue;
+                        }
                         bool willEventuallyHaveSufficientResources = true;
                         int minutesToWaitForAllResources = 0;
                         foreach(Ingredient ingredient in recipe)
                         {
                                 ResourceStore storage = currentState.GetStoreForResource(ingredient.ResourceType);
                                 int numResourceUnitsToAcquire = Math.Max(ingredient.RequiredQuantity - storage.UnitsStored, 0);
-                                if(numResourceUnitsToAcquire > 0)
+                                if(storage.UnitsProducedPerMinute <= 0)
                                 {
-                                        if(storage.UnitsProducedPerMinute <= 0)
-                                        {
-                                                willEventuallyHaveSufficientResources = false;
-                                                break;
-                                        }
+                                        willEventuallyHaveSufficientResources = false;
+                                        break;
+                                }
 
-                                        int minutesToWaitForThisResource = (int)Math.Ceiling(numResourceUnitsToAcquire / (double)storage.UnitsProducedPerMinute);
-                                        minutesToWaitForAllResources = Math.Max(minutesToWaitForAllResources, minutesToWaitForThisResource);
+                                int minutesToWaitForThisResource = (int)Math.Ceiling(numResourceUnitsToAcquire / (double)storage.UnitsProducedPerMinute);
+                                minutesToWaitForAllResources = Math.Max(minutesToWaitForAllResources, minutesToWaitForThisResource);
 
-                                        if(currentState.MinutesPassed + minutesToWaitForAllResources > TimeLimitMinutes)
-                                        {
-                                                willEventuallyHaveSufficientResources = false;
-                                                break;
-                                        }
+                                if(currentState.MinutesPassed + minutesToWaitForAllResources + 1 > TimeLimitMinutes) //Robots take 1 minute to build even after all resources have been acquired
+                                {
+                                        willEventuallyHaveSufficientResources = false;
+                                        break;
                                 }
                         }
 
                         if(willEventuallyHaveSufficientResources)
                         {
                                 CollectionState nextState = currentState.AdvanceTime(minutesToWaitForAllResources).BuildRobot(robot, recipe);
-                                statesToMakeDecisionsFrom.Enqueue(nextState);
+                                EnqueueState(nextState);
                         }
                 }
         }
-        return bestGeodeCount * BlueprintId;
+        return bestGeodeCount;
     }
+
+        private bool MaxBeneficialProductionReached(ResourceType resourceType, CollectionState state)
+        {
+                if(resourceType == ResourceType.Geode) return false;
+                foreach(List<Ingredient> recipe in RobotRecipes.Values)
+                {
+                        foreach(Ingredient ingredient in recipe)
+                        {
+                                if(ingredient.ResourceType != resourceType)
+                                {
+                                        continue;
+                                }
+                                if(state.GetStoreForResource(resourceType).UnitsProducedPerMinute < ingredient.RequiredQuantity)
+                                {
+                                        return false;
+                                }
+                        }
+                }
+                return true;
+        }
 }

@@ -20,6 +20,13 @@ public record struct CollectionState(
                 GeodeStore: new(ResourceType.Geode, 0, 0)
         ){ }
 
+        // Higher priority => look at first
+        public long Priority =>
+        (1_000 * GeodeStore.UnitsProducedPerMinute) +
+        (100 * ObsidianStore.UnitsProducedPerMinute) +
+        (10 * ClayStore.UnitsProducedPerMinute) +
+        (1 * OreStore.UnitsProducedPerMinute);
+
     public ResourceStore GetStoreForResource(ResourceType resourceType)
     {
         return resourceType switch
