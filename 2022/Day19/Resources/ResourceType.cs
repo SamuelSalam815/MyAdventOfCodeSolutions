@@ -1,6 +1,6 @@
 namespace Day19.Resources;
 
-public enum ResourceIdentifier : byte
+public enum ResourceType : byte
 {
         Ore = 1,
         Clay = 2,
