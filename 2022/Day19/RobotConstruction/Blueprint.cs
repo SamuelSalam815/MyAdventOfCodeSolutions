@@ -41,7 +41,7 @@ public record struct Blueprint
     private static string RobotRecipeToString(RobotType robotType, List<Ingredient> recipe)
     {
         string recipeText = string.Join(", ", recipe.Select(r => $"{r.RequiredQuantity} {r.ResourceType}"));
-        return $"Robot type {robotType} requires {recipeText} to be constructed";
+        return $"Each {robotType} robot requires {recipeText}.";
     }
 
     public override string ToString()
@@ -51,6 +51,61 @@ public record struct Blueprint
 
     internal long GetQualityLevel(int TimeLimitMinutes)
     {
-        return RobotRecipes.Count + TimeLimitMinutes;
+        long bestGeodeCount = 0;
+        Queue<CollectionState> statesToMakeDecisionsFrom = new();
+        statesToMakeDecisionsFrom.Enqueue(new CollectionState());
+        while(statesToMakeDecisionsFrom.Count > 0)
+        {
+                CollectionState currentState = statesToMakeDecisionsFrom.Dequeue();
+
+                // Decision : idle until reaching the time limit
+                ResourceStore geodeStore = currentState.GeodeStore;
+                long idleGeodeCount = geodeStore.UnitsStored + ((TimeLimitMinutes - currentState.MinutesPassed) * geodeStore.UnitsProducedPerMinute);
+                if(idleGeodeCount > bestGeodeCount)
+                {
+                        bestGeodeCount = idleGeodeCount;
+                }
+
+                if(currentState.MinutesPassed >= TimeLimitMinutes)
+                {
+                        continue;
+                }
+
+                // Decision : wait for sufficient resources to build a specific robot
+                foreach((RobotType robot, List<Ingredient> recipe) in RobotRecipes)
+                {
+                        bool willEventuallyHaveSufficientResources = true;
+                        int minutesToWaitForAllResources = 0;
+                        foreach(Ingredient ingredient in recipe)
+                        {
+                                ResourceStore storage = currentState.GetStoreForResource(ingredient.ResourceType);
+                                int numResourceUnitsToAcquire = Math.Max(ingredient.RequiredQuantity - storage.UnitsStored, 0);
+                                if(numResourceUnitsToAcquire > 0)
+                                {
+                                        if(storage.UnitsProducedPerMinute <= 0)
+                                        {
+                                                willEventuallyHaveSufficientResources = false;
+                                                break;
+                                        }
+
+                                        int minutesToWaitForThisResource = (int)Math.Ceiling(numResourceUnitsToAcquire / (double)storage.UnitsProducedPerMinute);
+                                        minutesToWaitForAllResources = Math.Max(minutesToWaitForAllResources, minutesToWaitForThisResource);
+
+                                        if(currentState.MinutesPassed + minutesToWaitForAllResources > TimeLimitMinutes)
+                                        {
+                                                willEventuallyHaveSufficientResources = false;
+                                                break;
+                                        }
+                                }
+                        }
+
+                        if(willEventuallyHaveSufficientResources)
+                        {
+                                CollectionState nextState = currentState.AdvanceTime(minutesToWaitForAllResources).BuildRobot(robot, recipe);
+                                statesToMakeDecisionsFrom.Enqueue(nextState);
+                        }
+                }
+        }
+        return bestGeodeCount * BlueprintId;
     }
 }
