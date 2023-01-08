@@ -12,12 +12,13 @@ public enum RobotType : byte
 
 public static class RobotTypeExtensions
 {
-        public static ResourceType ResourceGathered(this RobotType robot ) => robot switch
+    public static ResourceType ResourceGathered(this RobotType robot) =>
+        robot switch
         {
-                RobotType.Ore => ResourceType.Ore,
-                RobotType.Clay => ResourceType.Clay,
-                RobotType.Obsidian => ResourceType.Obsidian,
-                RobotType.Geode => ResourceType.Geode,
-                _ => throw new ArgumentException("Unsupported robot type"),
+            RobotType.Ore => ResourceType.Ore,
+            RobotType.Clay => ResourceType.Clay,
+            RobotType.Obsidian => ResourceType.Obsidian,
+            RobotType.Geode => ResourceType.Geode,
+            _ => throw new ArgumentException("Unsupported robot type"),
         };
 }
