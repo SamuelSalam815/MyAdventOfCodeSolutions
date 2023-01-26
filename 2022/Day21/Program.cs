@@ -1,4 +1,5 @@
 ﻿using Day21;
+using Day21.TreeApproach;
 
 internal class Program
 {
@@ -7,6 +8,7 @@ internal class Program
     {
         MonkeyJobCoordinator coordinator = new();
         List<MonkeyNumberJob> numberMonkies = new();
+        Dictionary<string, IMonkeyTreeNode> treeMonkies = new();
 
         StreamReader reader = new("input.txt");
         string? line;
@@ -20,6 +22,7 @@ internal class Program
             if(long.TryParse(jobDefinition, out long numberToShout))
             {
                 numberMonkies.Add(new(monkeyName, numberToShout));
+                treeMonkies.Add(monkeyName, new MonkeyNumberNode(numberToShout));
             }
             else
             {
@@ -31,6 +34,17 @@ internal class Program
                     throw new Exception($"Unsupported operation '{subparts[1]}'");
                 }
                 _ = new MonkeyMathJob(monkeyName, dependency1, dependency2, operationType, coordinator);
+
+                Func<long, long, long> operation = subparts[1] switch
+                {
+                    "+" => (a,b) => a + b,
+                    "-" => (a,b) => a - b,
+                    "*" => (a,b) => a * b,
+                    "/" => (a,b) => a / b,
+                    _ => throw new Exception("Unsupported operation type")
+                };
+
+                treeMonkies.Add(monkeyName, new MonkeyOperationNode(dependency1, dependency2, operation, treeMonkies));
             }
         }
 
@@ -40,6 +54,7 @@ internal class Program
         }
 
         Console.WriteLine(coordinator.RootMonkeyNumber);
+        Console.WriteLine(treeMonkies["root"].GetValue());
     }
 
     public static bool TryParseOperationType(string s, out OperationType operationType)
