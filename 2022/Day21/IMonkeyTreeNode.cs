@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Day21.TreeApproach;
+namespace Day21;
 
 internal interface IMonkeyTreeNode
 {

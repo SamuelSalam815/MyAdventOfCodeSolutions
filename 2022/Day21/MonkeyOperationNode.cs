@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Day21.TreeApproach;
+namespace Day21;
 
 internal class MonkeyOperationNode : IMonkeyTreeNode
 {
@@ -14,7 +14,7 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
     private readonly Func<long, long, long> _operation;
     private readonly IDictionary<string, IMonkeyTreeNode> _nodeMap;
 
-    public MonkeyOperationNode(string leftChildName, string rightChildName, Func<long,long,long> operation, IDictionary<string, IMonkeyTreeNode> nodeMap)
+    public MonkeyOperationNode(string leftChildName, string rightChildName, Func<long, long, long> operation, IDictionary<string, IMonkeyTreeNode> nodeMap)
     {
         _leftChildName = leftChildName;
         _rightChildName = rightChildName;
@@ -33,7 +33,7 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
     }
     public long GetValue()
     {
-        if(_cachedValue is not null)
+        if (_cachedValue is not null)
         {
             return _cachedValue.Value;
         }
