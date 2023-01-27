@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Dynamic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Day21;
+﻿namespace Day21;
 
 internal class MonkeyOperationNode : IMonkeyTreeNode
 {
@@ -57,16 +50,16 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
 
     private bool HasHumanDescendant()
     {
-        if(_cachedHasHumanDescendant is not null)
+        if (_cachedHasHumanDescendant is not null)
         {
             return _cachedHasHumanDescendant.Value;
         }
 
-        if ( LeftChild.Name.Equals(Program.HumanName) || (LeftChild is MonkeyOperationNode leftOperation && leftOperation.HasHumanDescendant()) )
+        if (LeftChild.Name.Equals(Program.HumanName) || (LeftChild is MonkeyOperationNode leftOperation && leftOperation.HasHumanDescendant()))
         {
             _cachedHasHumanDescendant = true;
         }
-        else if( RightChild.Name.Equals(Program.HumanName) || (RightChild is MonkeyOperationNode rightOperation && rightOperation.HasHumanDescendant()))
+        else if (RightChild.Name.Equals(Program.HumanName) || (RightChild is MonkeyOperationNode rightOperation && rightOperation.HasHumanDescendant()))
         {
             _cachedHasHumanDescendant = true;
         }
@@ -80,12 +73,12 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
 
     private MonkeyOperationNode GetParentNode()
     {
-        foreach(var entry in _nodeMap)
+        foreach (KeyValuePair<string, IMonkeyTreeNode> entry in _nodeMap)
         {
             IMonkeyTreeNode node = entry.Value;
-            if(node is MonkeyOperationNode potentialParentNode)
+            if (node is MonkeyOperationNode potentialParentNode)
             {
-                if(ReferenceEquals(potentialParentNode.LeftChild,this) || ReferenceEquals(potentialParentNode.RightChild, this))
+                if (ReferenceEquals(potentialParentNode.LeftChild, this) || ReferenceEquals(potentialParentNode.RightChild, this))
                 {
                     return potentialParentNode;
                 }
@@ -97,12 +90,12 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
 
     public long InferValue()
     {
-        if(_cachedInferredValue is not null)
+        if (_cachedInferredValue is not null)
         {
             return _cachedInferredValue.Value;
         }
 
-        if(Name.Equals(Program.RootName))
+        if (Name.Equals(Program.RootName))
         {
             throw new Exception("Invalid operation on root node");
         }
@@ -113,7 +106,7 @@ internal class MonkeyOperationNode : IMonkeyTreeNode
         IMonkeyTreeNode siblingNode;
         Func<long, long, long> inferenceFunction;
 
-        if(isThisLeftChild)
+        if (isThisLeftChild)
         {
             siblingNode = parent.RightChild;
             inferenceFunction = parent.CalculateLeftChildOperation;

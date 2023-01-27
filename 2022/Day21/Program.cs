@@ -1,5 +1,4 @@
 ﻿using Day21;
-using System.Linq.Expressions;
 
 internal class Program
 {
@@ -14,14 +13,14 @@ internal class Program
         string? line;
 
         MonkeyOperationNode? humanParentNode = null;
-        
-        while((line = reader.ReadLine()) is not null)
+
+        while ((line = reader.ReadLine()) is not null)
         {
             string[] parts = line.Split(": ");
             string monkeyName = parts[0];
             string jobDefinition = parts[1];
 
-            if(long.TryParse(jobDefinition, out long numberToShout))
+            if (long.TryParse(jobDefinition, out long numberToShout))
             {
                 treeMonkies.Add(monkeyName, new MonkeyNumberNode(monkeyName, numberToShout));
             }
@@ -36,7 +35,7 @@ internal class Program
                 Func<long, long, long> calculateLeftOperation;
                 Func<long, long, long> calculateRightOperation;
 
-                switch(operationSymbol)
+                switch (operationSymbol)
                 {
                     case "+":
                         calculateValueOperation = (left, right) => left + right;
@@ -71,9 +70,9 @@ internal class Program
                     calculateLeftOperation,
                     calculateRightOperation);
 
-                if(leftArgumentName.Equals(HumanName) || rightArgumentName.Equals(HumanName))
+                if (leftArgumentName.Equals(HumanName) || rightArgumentName.Equals(HumanName))
                 {
-                    if(humanParentNode is not null)
+                    if (humanParentNode is not null)
                     {
                         throw new Exception("Encountered multiple parents for the human node. Error");
                     }
@@ -91,7 +90,7 @@ internal class Program
             throw new Exception("Human node has no parent node, its value cannot be inferred");
         }
 
-        if(humanParentNode.LeftChild.Name.Equals(HumanName))
+        if (humanParentNode.LeftChild.Name.Equals(HumanName))
         {
             Console.WriteLine(humanParentNode.CalculateLeftChildOperation(humanParentNode.InferValue(), humanParentNode.RightChild.GetValue()));
         }
